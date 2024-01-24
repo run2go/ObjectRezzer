@@ -35,7 +35,7 @@ default
         llRegionSay(CHANNEL, (string)llGetKey());
     }
     listen(integer c, string n, key id, string msg) {
-        if (llGetOwnerKey(id) == llGetOwner()) {
+        if (llGetOwnerKey(id) == kLastOwner) {
             integer returnResponse = ReturnObject((key)msg);
             llRegionSay(CHANNEL, (string)returnResponse);
         }
