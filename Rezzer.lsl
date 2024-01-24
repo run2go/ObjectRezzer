@@ -18,8 +18,8 @@ integer gListener; // Keep track of listener
 string trimQuotes(string input) { return llGetSubString(input, 1, -2); } // Trim quotes around a string
 
 rezObject(integer button) {
-    // Check if an object is already rezzed, if yes, delete it
-    if (llKey2Name(currentObjectID) == currentObjectName && currentObjectName != "") llOwnerSay("Object already rezzed");
+    // Object is already rezzed? Delete it first
+    if (llKey2Name(currentObjectID) == currentObjectName) llOwnerSay("Object already rezzed");
     else if (currentObjectID != NULL_KEY) ReturnObject(currentObjectID);
     else {
         currentObjectName = llList2String(objectData, button + 1);
