@@ -1,6 +1,7 @@
 // Rezzer.lsl
 // Author & Repository: https://github.com/run2go/ObjectRezzer
 // License: MIT
+// Version: 0.1.0
 
 // Configuration Parameters
 integer CHANNEL = 4588; // Comms channel for the communication
@@ -21,6 +22,7 @@ integer gLine = 0;
 key gQueryID;
 integer gListener; // Keep track of script menus
 integer gListenHelper; // Allow RezzerHelper.lsl to register
+integer nDuplicates = 0;
 
 DebugMessage(string msg) { if (DEBUG) llRegionSayTo(kObjectOwner, 0, msg); } // Helper function for debug messages
 
@@ -29,7 +31,7 @@ string trimQuotes(string input) { return llGetSubString(input, 1, -2); } // Trim
 RezObject(integer button) {
     // Object is already rezzed? Delete it first
     if (llKey2Name(currentObjectID) == currentObjectName) llOwnerSay("Object already rezzed");
-    else if (currentObjectID != NULL_KEY) ReturnObject(currentObjectID);
+    //else if (currentObjectID != NULL_KEY) ReturnObject(currentObjectID);
     else {
         currentObjectName = llList2String(objectData, button + 1);
         vector objectPos = (vector)llList2String(objectData, button + 2);
@@ -37,13 +39,14 @@ RezObject(integer button) {
         rotation objectRot = llEuler2Rot(objectRotVector * DEG_TO_RAD);
         rotation rezzerRot = llGetRot();
         rotation offsetRot = rezzerRot * objectRot; // Calculate the offset based on the rezzer's position and rotation
-        
+        //llSensor(currentObjectName, NULL_KEY, ( PASSIVE ), 15.0, PI); // Start a sensor to get the rezzed key
+        //llSetTimerEvent(0.1); // Remove unregistered existing object(s) first .. recursion until all objects are gone?
         llRezObject(currentObjectName, objectPos, ZERO_VECTOR, offsetRot, 0); // Rez the object
-        llSensor(currentObjectName, "", ( ACTIVE | PASSIVE ), 15.0, PI ); // Start a sensor to get the rezzed key
+        //llSensor(currentObjectName, NULL_KEY, ( PASSIVE | SCRIPTED ), 15.0, PI); // Start a sensor to get the rezzed key
+        llSensor("", NULL_KEY, ( PASSIVE ), 15.0, PI); // Start a sensor to get the rezzed key
         llSetTimerEvent(2); // Issue a TimerEvent after 2s
     }
     //DebugMessage("\n" + llDumpList2String(objectData, "\n"));
-    DebugMessage((string)currentObjectID);
 }
 
 ReturnObject(key objectID) {
@@ -59,10 +62,11 @@ ReturnObject(key objectID) {
         currentObjectID = NULL_KEY;
     }
     else if (kRezzerHelper != NULL_KEY) llRegionSayTo(kRezzerHelper, CHANNEL, objectID); // Pass objectID to RezzerHelper.lsl
-    else llOwnerSay("Missing RezzerHelper Object for group owned land.");
+    else llRegionSayTo(kLandOwner, 0, "Missing RezzerHelper Object for group owned land.");
 }
 
 default {
+    on_rez(integer start_param) { llResetScript(); }
     state_entry() { // Import data from notecard during startup
         gName = llGetInventoryName(INVENTORY_NOTECARD, 0); // Select the first notecard in the object's inventory
         gQueryID = llGetNotecardLine(gName, gLine); // Request first line
@@ -71,6 +75,7 @@ default {
         kLandOwner = llGetLandOwnerAt(llGetPos());
         kLandGroup = llList2Key(llGetParcelDetails(llGetPos(), [PARCEL_DETAILS_GROUP]), 0);
         if (kLandOwner == kLandGroup) bGroupOwned = TRUE;
+        else llRequestPermissions(kLandOwner, PERMISSION_RETURN_OBJECTS);
     }
 
     dataserver(key query_id, string data) {
@@ -84,7 +89,11 @@ default {
             } // else llOwnerSay("Notecard Imported.");
         }
     }
-
+    
+    run_time_permissions(integer perm) {
+        if (perm & PERMISSION_RETURN_OBJECTS) llRegionSayTo(kLandOwner, 0, "Return Permissions aqcuired");
+    }
+    
     touch_start(integer total_number) { // Display a dialog with buttons for each object name
         dialogChannel = (integer)("0x" + llGetSubString(llGetKey(), 0, 7)); // Create a unique channel for the dialog
         llListenRemove(gListener); // Kill active listener
@@ -98,7 +107,6 @@ default {
             string buttonName = llList2String(objectData, i * 4);
             buttonLabels += llGetSubString(buttonName, 0, 23); // Trim object names incase they are too long
         }
-        
         llDialog(llGetOwner(), "Select an object to rez:", buttonLabels, dialogChannel);
         llSetTimerEvent(60.0); // 1min Timeout per dialog prompt
     }
@@ -112,9 +120,11 @@ default {
     
     sensor(integer detected) {
         integer i;
-        for (i = 0; i < detected; i++) {
-            currentObjectID = llDetectedKey(detected);
-            DebugMessage((string)currentObjectID);
+        for (i = 0; i <= detected; i++) {
+            if (llDetectedName(i) == currentObjectName) {
+                currentObjectID = llDetectedKey(i);
+                DebugMessage((string)currentObjectID);
+            }
         }
     }
     
